@@ -3,6 +3,7 @@ package schema
 import (
 	"errors"
 	"fmt"
+
 	"github.com/ipld/go-ipld-prime"
 	"github.com/ipld/go-ipld-prime/node/bindnode"
 )
@@ -15,6 +16,11 @@ type (
 
 	IndexMetaInfo struct {
 		Version int64
+	}
+
+	CollectionMetaInfo struct {
+		Version    int64
+		PrimaryKey []string
 	}
 )
 
@@ -85,6 +91,42 @@ func UnwrapIndexMetaInfo(node ipld.Node) (*IndexMetaInfo, error) {
 		return nil, fmt.Errorf("unwrapped node does not match schema.IndexMetaInfo")
 	}
 	return imi, nil
+}
+
+func BuildCollectionMetaInfoNode(version int64, primaryKey []string) (ipld.Node, error) {
+	collectionMetaInfo := &CollectionMetaInfo{
+		Version:    version,
+		PrimaryKey: primaryKey,
+	}
+	return collectionMetaInfo.ToNode()
+}
+
+func (cmi CollectionMetaInfo) ToNode() (n ipld.Node, err error) {
+	// TODO: remove the panic recovery once IPLD bindnode is stabilized.
+	defer func() {
+		if r := recover(); r != nil {
+			err = toError(r)
+		}
+	}()
+	n = bindnode.Wrap(&cmi, CollectionMetaInfoPrototype.Type()).Representation()
+	return
+}
+
+func UnwrapCollectionMetaInfo(node ipld.Node) (*CollectionMetaInfo, error) {
+	if node.Prototype() != CollectionMetaInfoPrototype {
+		cmiBuilder := CollectionMetaInfoPrototype.NewBuilder()
+		err := cmiBuilder.AssignNode(node)
+		if err != nil {
+			return nil, fmt.Errorf("faild to convert node prototype: %w", err)
+		}
+		node = cmiBuilder.Build()
+	}
+
+	cmi, ok := bindnode.Unwrap(node).(*CollectionMetaInfo)
+	if !ok || cmi == nil {
+		return nil, fmt.Errorf("unwrapped node does not match schema.CollectionMetaInfo")
+	}
+	return cmi, nil
 }
 
 func toError(r interface{}) error {

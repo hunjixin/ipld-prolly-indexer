@@ -257,9 +257,11 @@ Metadata storage. Contains an IPLD Map.
 `"version"` integer property set to `1` representing the DB version. Breaking changes to the database representation must have incremented versions.
 `"type"` string property set to "database" to signify this is an indexed database within the prolly tree.
 
-#### `\x00{collection utf8 name}\x00\x00`
+#### `\xFF\xFF{collection utf8 name}`
 
-TODO: Collection metadata with primary key
+Collection metadata storage. Contains an IPLD Map. May be unset for older DBs.
+`"version"` integer property set to `1` representing the collection version. Breaking changes to the collection representation must have incremented versions. If the metadata field is missing, assume the version is `1`.
+`"PrimaryKey"` is an optional array of strings representing information on how to derive the primary key for records in this collection. If it is empty or omitted, assume the primary key is the CID of the record. Else use the fields to derive the primary key for a record (used for mutable records).
 
 #### `\x00{collection utf8 name}\x00d\x00{primary key bytes}`
 

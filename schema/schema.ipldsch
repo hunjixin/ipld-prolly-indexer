@@ -9,3 +9,9 @@ type DBMetaInfo struct {
 type IndexMetaInfo struct {
     Version Int
 }
+
+# Metadata about collection
+type CollectionMetaInfo struct {
+    Version Int
+    PrimaryKey optional [String]
+}

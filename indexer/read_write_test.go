@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/ipld/go-ipld-prime"
-	"github.com/ipld/go-ipld-prime/node/basicnode"
-	"github.com/zeebo/assert"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/ipld/go-ipld-prime"
+	"github.com/ipld/go-ipld-prime/node/basicnode"
+	"github.com/zeebo/assert"
 )
 
 const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -71,7 +72,7 @@ func Test5kRandomWriteAndReadWithoutIndex(t *testing.T) {
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 
-	collection, err := db.Collection("Students", "Name")
+	collection, err := db.Collection(ctx, "Students", "Name")
 	assert.NoError(t, err)
 
 	timeStart := time.Now()
@@ -115,7 +116,7 @@ func Test5kRandomBatchWriteAndReadWithoutIndex(t *testing.T) {
 	db, err := NewMemoryDatabase()
 	assert.NoError(t, err)
 
-	collection, err := db.Collection("Students", "Name")
+	collection, err := db.Collection(ctx, "Students", "Name")
 	assert.NoError(t, err)
 
 	timeStart := time.Now()
@@ -146,7 +147,7 @@ func Test5kRandomWriteAndReadWithOneIndex(t *testing.T) {
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 
-	collection, err := db.Collection("Students", "Name")
+	collection, err := db.Collection(ctx, "Students", "Name")
 	assert.NoError(t, err)
 
 	_, err = collection.CreateIndex(ctx, "Telephone")
@@ -178,7 +179,7 @@ func Test5kRandomWriteAndReadWithTwoIndexes(t *testing.T) {
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 
-	collection, err := db.Collection("Students", "Name")
+	collection, err := db.Collection(ctx, "Students", "Name")
 	assert.NoError(t, err)
 
 	_, err = collection.CreateIndex(ctx, "Telephone")
@@ -214,7 +215,7 @@ func Test5kRandomWriteAndReadWithOneIndexButTwoFields(t *testing.T) {
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 
-	collection, err := db.Collection("Students", "Name")
+	collection, err := db.Collection(ctx, "Students", "Name")
 	assert.NoError(t, err)
 
 	_, err = collection.CreateIndex(ctx, "Telephone", "School")

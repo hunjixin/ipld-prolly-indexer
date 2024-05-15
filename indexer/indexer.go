@@ -6,15 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
+	"time"
+
 	"github.com/RangerMauve/ipld-prolly-indexer/schema"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	sb "github.com/ipld/go-ipld-prime/traversal/selector/builder"
-	"io"
-	"strings"
-	"time"
 
 	datastore "github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
@@ -357,7 +358,7 @@ func (db *Database) GetBlockstore() *blockstore.Blockstore {
 	return &db.blockStore
 }
 
-func (db *Database) Collection(name string, primaryKey ...string) (*Collection, error) {
+func (db *Database) Collection(ctx context.Context, name string, primaryKey ...string) (*Collection, error) {
 	if db.collections[name] == nil {
 		collection := Collection{
 			db,
@@ -365,7 +366,7 @@ func (db *Database) Collection(name string, primaryKey ...string) (*Collection, 
 			primaryKey,
 		}
 		db.collections[name] = &collection
-		err := collection.Initialize()
+		err := collection.Initialize(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -374,13 +375,106 @@ func (db *Database) Collection(name string, primaryKey ...string) (*Collection, 
 	return db.collections[name], nil
 }
 
+func (db *Database) ListCollections(ctx context.Context) ([]string, error) {
+	start := concat(FULL_BYTE, FULL_BYTE)
+	end := concat(start, FULL_BYTE)
+
+	iterator, err := db.tree.Search(ctx, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	var collections []string
+
+	for !iterator.Done() {
+		// Ignore the key since we don't care about it
+		key, data, err := iterator.NextPair()
+		if err != nil {
+			return nil, err
+		} else if data == nil {
+			// Equivalent of done
+			break
+		}
+
+		// sice off the first two bytes and parse the rest as a string
+		name := string(key[2:])
+
+		collections = append(collections, name)
+	}
+
+	return collections, nil
+}
+
 func (collection *Collection) HasPrimaryKey() bool {
 	return (collection.primaryKey != nil) && (len(collection.primaryKey) != 0)
 }
 
-func (collection *Collection) Initialize() error {
+func (collection *Collection) PrimaryKey() []string {
+	if !collection.HasPrimaryKey() {
+		return []string{}
+	}
+	return collection.primaryKey[:]
+}
+
+func (collection *Collection) Initialize(ctx context.Context) error {
+	metadata, loadErr := collection.GetMetaInfo(ctx)
+	if !collection.HasPrimaryKey() {
+		if metadata != nil {
+			// Likely loading as a reader, try loading metadata
+			collection.primaryKey = metadata.PrimaryKey
+		}
+	} else {
+		// Likely loading as a writer, save metadata if not exists
+		if loadErr != nil {
+			return collection.saveMetaInfo(ctx)
+		}
+	}
 	// See if there is metadata (primary key, collection version number)
 	// If no metadata, take primary key and save it
+	return nil
+}
+
+func (collection *Collection) getMetaKey() []byte {
+	return concat(FULL_BYTE, FULL_BYTE, []byte(collection.name))
+}
+func (collection *Collection) GetMetaInfo(ctx context.Context) (*schema.CollectionMetaInfo, error) {
+	key := collection.getMetaKey()
+
+	node, err := collection.db.tree.Get(key)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return schema.UnwrapCollectionMetaInfo(node)
+}
+
+func (collection *Collection) saveMetaInfo(ctx context.Context) error {
+	key := collection.getMetaKey()
+	metaInfo := schema.CollectionMetaInfo{
+		Version:    1,
+		PrimaryKey: collection.primaryKey,
+	}
+	node, err := metaInfo.ToNode()
+
+	if err != nil {
+		return err
+	}
+
+	err = collection.db.startMutating(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	err = collection.db.tree.Put(ctx, key, node)
+
+	if err != nil {
+		return err
+	}
+
+	err = collection.db.ApplyChanges(ctx)
+
 	return nil
 }
 

@@ -6,8 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/zeebo/assert"
 	"testing"
+
+	"github.com/zeebo/assert"
 
 	ipld "github.com/ipld/go-ipld-prime"
 	datamodel "github.com/ipld/go-ipld-prime/datamodel"
@@ -28,6 +29,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestKitchenSink(t *testing.T) {
+	ctx := context.Background()
 	db, err := NewMemoryDatabase()
 
 	assert.NoError(t, err)
@@ -41,11 +43,10 @@ func TestKitchenSink(t *testing.T) {
 {"name":"Clearance and Steve"}`)
 
 	// collection of users indexed by  name
-	collection, err := db.Collection("users", "name")
+	collection, err := db.Collection(ctx, "users", "name")
 
 	assert.NoError(t, err)
 
-	ctx := context.Background()
 	err = collection.IndexNDJSON(ctx, reader)
 	assert.NoError(t, err)
 
@@ -99,6 +100,7 @@ func TestKitchenSink(t *testing.T) {
 }
 
 func TestBasicInsert(t *testing.T) {
+	ctx := context.Background()
 	db, err := NewMemoryDatabase()
 	assert.NoError(t, err)
 	if db == nil {
@@ -106,8 +108,9 @@ func TestBasicInsert(t *testing.T) {
 	}
 
 	initialCid := db.RootCid()
-	collection, err := db.Collection("users", "name")
-	ctx := context.Background()
+
+	collection, err := db.Collection(ctx, "users", "name")
+	assert.NoError(t, err)
 
 	err = collection.Insert(ctx, makeUser("alice"))
 	assert.NoError(t, err)
@@ -150,7 +153,7 @@ func TestSampleData(t *testing.T) {
 	assert.NoError(t, err)
 
 	// collection of logs, indexed by their ID field
-	collection, err := db.Collection("logs", "id")
+	collection, err := db.Collection(ctx, "logs", "id")
 
 	assert.NoError(t, err)
 
@@ -182,11 +185,11 @@ func TestSampleData(t *testing.T) {
 
 	query := Query{
 		Equal: map[string]ipld.Node{
-			"created": basicnode.NewInt(1688405691),
+			"created": basicnode.NewInt(1111),
 		},
 	}
 
-	expectedId := "chatcmpl-1056144062448104093141073783165392307"
+	expectedId := int64(9)
 
 	results, err := collection.Search(ctx, query)
 
@@ -202,7 +205,7 @@ func TestSampleData(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.True(t, datamodel.DeepEqual(id, basicnode.NewString(expectedId)))
+	assert.True(t, datamodel.DeepEqual(id, basicnode.NewInt(expectedId)))
 
 	proof, err := collection.GetProof(record.Id)
 
@@ -214,7 +217,13 @@ func TestSampleData(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	loadedCollection, err := loaded.Collection("logs", "id")
+	collections, err := loaded.ListCollections(ctx)
+	assert.NoError(t, err)
+	assert.DeepEqual(t, collections, []string{"logs"})
+
+	loadedCollection, err := loaded.Collection(ctx, "logs", "id")
+
+	assert.NoError(t, err)
 
 	loadedNode, err := loadedCollection.Get(ctx, record.Id)
 
@@ -237,6 +246,7 @@ func TestSampleData(t *testing.T) {
 func TestMergeDB(t *testing.T) {
 	db, err := NewMemoryDatabase()
 	assert.NoError(t, err)
+	ctx := context.Background()
 
 	reader := strings.NewReader(`{"name":"Alice"}
 									{"name":"Bob"}
@@ -244,10 +254,9 @@ func TestMergeDB(t *testing.T) {
 									{"name":"Clearance and Steve"}`)
 
 	// collection of users indexed by name
-	collection, err := db.Collection("users", "name")
+	collection, err := db.Collection(ctx, "users", "name")
 	assert.NoError(t, err)
 
-	ctx := context.Background()
 	err = collection.IndexNDJSON(ctx, reader)
 	assert.NoError(t, err)
 
@@ -266,7 +275,7 @@ func TestMergeDB(t *testing.T) {
 	reader = strings.NewReader(`{"name":"William"}
 									{"name":"Tom"}
 									{"name":"Smith"}`)
-	collection, err = dbTwo.Collection("users", "name")
+	collection, err = dbTwo.Collection(ctx, "users", "name")
 	assert.NoError(t, err)
 
 	err = collection.IndexNDJSON(ctx, reader)
@@ -295,7 +304,7 @@ func TestMergeDB(t *testing.T) {
 	//	t.Logf("%v : %s", k, vLink.String())
 	//}
 
-	collection, err = newDB.Collection("users", "name")
+	collection, err = newDB.Collection(ctx, "users", "name")
 	assert.NoError(t, err)
 
 	records, err = collection.Iterate(ctx)
@@ -382,6 +391,7 @@ func TestMergeDB(t *testing.T) {
 func TestExportProof(t *testing.T) {
 	db, err := NewMemoryDatabase()
 	assert.NoError(t, err)
+	ctx := context.Background()
 
 	tmpDir := t.TempDir()
 
@@ -391,10 +401,9 @@ func TestExportProof(t *testing.T) {
 									{"name":"Clearance and Steve"}`)
 
 	// collection of users indexed by name
-	collection, err := db.Collection("users", "name")
+	collection, err := db.Collection(ctx, "users", "name")
 	assert.NoError(t, err)
 
-	ctx := context.Background()
 	err = collection.IndexNDJSON(ctx, reader)
 	assert.NoError(t, err)
 
@@ -427,7 +436,7 @@ func TestSortAndCompareCondition(t *testing.T) {
 									{"name":"Clearance and Steve", "key1":"aabaa", "key2": "acbde", "key3": "index3"}
 									{"name":"William", "key1": "aaaba", "key2": "12245", "key3": "index1"}`)
 	// collection of users indexed by name
-	collection, err := db.Collection("users", "name")
+	collection, err := db.Collection(ctx, "users", "name")
 	assert.NoError(t, err)
 
 	err = db.startMutating(ctx)
@@ -469,4 +478,22 @@ func TestSortAndCompareCondition(t *testing.T) {
 		t.Logf("%s\n", cborBytesOfNode(record.Data))
 		t.Logf(printer.Sprint(record.Data))
 	}
+}
+
+func TestListingCollections(t *testing.T) {
+	ctx := context.Background()
+	db, err := NewMemoryDatabase()
+	assert.NoError(t, err)
+
+	// collection of users indexed by name
+	_, err = db.Collection(ctx, "users", "name")
+	assert.NoError(t, err)
+
+	// collection of users indexed by name
+	_, err = db.Collection(ctx, "makers")
+	assert.NoError(t, err)
+
+	root := db.RootCid()
+
+	assert.NotNil(t, root)
 }
