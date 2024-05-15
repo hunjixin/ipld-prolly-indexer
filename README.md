@@ -45,7 +45,7 @@ func main() {
 					{"name":"Clearance and Steve", "age":18}`)
 
 	// create collection and set primary key
-	collection, err := db.Collection("users", "name")
+	collection, err := db.Collection(ctx, "users", "name")
 	if err != nil {
 		panic(err)
 	}
@@ -121,7 +121,10 @@ func main() {
 ### `func NewDatabaseFromBlockStore(ctx context.Context, blockStore blockstore.Blockstore) (*Database, error)`
 Initialize a new database from blockstore.
 
-### `func (db *Database) Collection(name string, primaryKey ...string) (*Collection, error)`
+### `func (db *Database) ListCollections(ctx context.Context) ([]string, error)`
+List all known collections within this database. Scans the data itself to look for collection metadata.
+
+### `func (db *Database) Collection(ctx context.Context, name string, primaryKey ...string) (*Collection, error)`
 Manually creates a collection with the name and primary key fields or return the existed collection.
 
 ### `func (collection *Collection) IndexNDJSON(ctx context.Context, byteStream io.Reader) error`
