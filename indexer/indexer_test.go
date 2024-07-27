@@ -463,9 +463,9 @@ func TestSortAndCompareCondition(t *testing.T) {
 			"key3": basicnode.NewString("index3"),
 		},
 		Compare: &CompareCondition{
-			cmp:       GreaterThan,
-			indexName: "key1",
-			indexVal:  basicnode.NewString("aaba"),
+			Cmp:       GreaterThan,
+			IndexName: "key1",
+			IndexVal:  basicnode.NewString("aaba"),
 		},
 		Sort:  "key2",
 		Limit: 0,

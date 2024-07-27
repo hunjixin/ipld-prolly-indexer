@@ -12,7 +12,6 @@ import (
 
 	"github.com/RangerMauve/ipld-prolly-indexer/schema"
 	blocks "github.com/ipfs/go-block-format"
-	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	sb "github.com/ipld/go-ipld-prime/traversal/selector/builder"
@@ -58,26 +57,26 @@ type Index struct {
 	fields     []string
 }
 
-type op string
+type Op string
 
 const (
-	GreaterThan op = "GreaterThan"
-	LessThan    op = "LessThan"
+	GreaterThan Op = "GreaterThan"
+	LessThan    Op = "LessThan"
 )
 
 type CompareCondition struct {
-	cmp       op
-	indexName string
-	indexVal  ipld.Node
+	Cmp       Op
+	IndexName string
+	IndexVal  ipld.Node
 }
 
 func (cc *CompareCondition) Satisfy(record ipld.Node) (bool, error) {
-	keyBytes, err := fieldCborBytesFromRecord(cc.indexName, record)
+	keyBytes, err := fieldCborBytesFromRecord(cc.IndexName, record)
 	if err != nil {
 		return false, err
 	}
-	cmpRes := bytes.Compare(keyBytes, cborBytesOfNode(cc.indexVal))
-	switch cc.cmp {
+	cmpRes := bytes.Compare(keyBytes, cborBytesOfNode(cc.IndexVal))
+	switch cc.Cmp {
 	case GreaterThan:
 		if cmpRes > 0 {
 			return true, nil
