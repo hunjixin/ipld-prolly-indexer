@@ -28,6 +28,7 @@ import (
 	dagcbor "github.com/ipld/go-ipld-prime/codec/cbor"
 	dagjson "github.com/ipld/go-ipld-prime/codec/json"
 
+	cid "github.com/ipfs/go-cid"
 	datamodel "github.com/ipld/go-ipld-prime/datamodel"
 	qp "github.com/ipld/go-ipld-prime/fluent/qp"
 	cidlink "github.com/ipld/go-ipld-prime/linking/cid"
