@@ -57,15 +57,15 @@ type Index struct {
 	fields     []string
 }
 
-type op string
+type Op string
 
 const (
-	GreaterThan op = "GreaterThan"
-	LessThan    op = "LessThan"
+	GreaterThan Op = "GreaterThan"
+	LessThan    Op = "LessThan"
 )
 
 type CompareCondition struct {
-	Cmp       op
+	Cmp       Op
 	IndexName string
 	IndexVal  ipld.Node
 }
