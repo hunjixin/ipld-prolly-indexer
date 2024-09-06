@@ -65,18 +65,18 @@ const (
 )
 
 type CompareCondition struct {
-	cmp       op
-	indexName string
-	indexVal  ipld.Node
+	Cmp       op
+	IndexName string
+	IndexVal  ipld.Node
 }
 
 func (cc *CompareCondition) Satisfy(record ipld.Node) (bool, error) {
-	keyBytes, err := fieldCborBytesFromRecord(cc.indexName, record)
+	keyBytes, err := fieldCborBytesFromRecord(cc.IndexName, record)
 	if err != nil {
 		return false, err
 	}
-	cmpRes := bytes.Compare(keyBytes, cborBytesOfNode(cc.indexVal))
-	switch cc.cmp {
+	cmpRes := bytes.Compare(keyBytes, cborBytesOfNode(cc.IndexVal))
+	switch cc.Cmp {
 	case GreaterThan:
 		if cmpRes > 0 {
 			return true, nil
@@ -297,6 +297,40 @@ func (db *Database) GetDBMetaInfo() (*schema.DBMetaInfo, error) {
 		return nil, err
 	}
 	return dmi, nil
+}
+
+func (db *Database) ListCollections(ctx context.Context) ([]string, error) {
+	start := concat(FULL_BYTE, FULL_BYTE)
+	end := concat(start, FULL_BYTE)
+
+	iterator, err := db.tree.Search(ctx, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	var collections []string
+
+	for !iterator.Done() {
+		// Ignore the key since we don't care about it
+		key, data, err := iterator.NextPair()
+		if err != nil {
+			return nil, err
+		} else if data == nil {
+			// Equivalent of done
+			break
+		}
+
+		// sice off the first two bytes and parse the rest as a string
+		name := string(key[2:])
+
+		collections = append(collections, name)
+	}
+
+	return collections, nil
+}
+
+func (db *Database) DeleteCol(col string) {
+	delete(db.collections, col)
 }
 
 func (db *Database) ApplyChanges(ctx context.Context) error {
