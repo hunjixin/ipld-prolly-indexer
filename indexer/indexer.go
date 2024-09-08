@@ -300,6 +300,40 @@ func (db *Database) GetDBMetaInfo() (*schema.DBMetaInfo, error) {
 	return dmi, nil
 }
 
+func (db *Database) ListCollections(ctx context.Context) ([]string, error) {
+	start := concat(FULL_BYTE, FULL_BYTE)
+	end := concat(start, FULL_BYTE)
+
+	iterator, err := db.tree.Search(ctx, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	var collections []string
+
+	for !iterator.Done() {
+		// Ignore the key since we don't care about it
+		key, data, err := iterator.NextPair()
+		if err != nil {
+			return nil, err
+		} else if data == nil {
+			// Equivalent of done
+			break
+		}
+
+		// sice off the first two bytes and parse the rest as a string
+		name := string(key[2:])
+
+		collections = append(collections, name)
+	}
+
+	return collections, nil
+}
+
+func (db *Database) DeleteCol(col string) {
+	delete(db.collections, col)
+}
+
 func (db *Database) ApplyChanges(ctx context.Context) error {
 	rootCid, err := db.tree.Rebuild(ctx)
 	if err != nil {
