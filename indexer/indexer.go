@@ -388,8 +388,8 @@ func (db *Database) RootCid() cid.Cid {
 	return db.rootCid
 }
 
-func (db *Database) GetBlockstore() *blockstore.Blockstore {
-	return &db.blockStore
+func (db *Database) GetBlockstore() blockstore.Blockstore {
+	return db.blockStore
 }
 
 func (db *Database) Collection(ctx context.Context, name string, primaryKey ...string) (*Collection, error) {
