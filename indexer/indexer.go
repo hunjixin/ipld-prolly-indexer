@@ -40,6 +40,7 @@ import (
 var log = logging.Logger("ipld-prolly-indexer")
 
 type Database struct {
+	closer      io.Closer
 	blockStore  blockstore.Blockstore
 	linkSystem  *ipld.LinkSystem
 	rootCid     cid.Cid
@@ -131,7 +132,90 @@ const (
 	ChannelTimeOut = time.Second * 10
 )
 
-func FromBlockStore(blockStore blockstore.Blockstore, rootCid cid.Cid) (*Database, error) {
+var _ io.Closer = (*closerWrapper)(nil)
+
+type closerWrapper struct {
+	fn func() error
+}
+
+func NewCloserWrapper(fn func() error) *closerWrapper {
+	return &closerWrapper{
+		fn: fn,
+	}
+}
+
+// Close implements io.Closer.
+func (c *closerWrapper) Close() error {
+	return c.fn()
+}
+
+type BlockStoreWithCloser interface {
+	blockstore.Blockstore
+	Close() error
+}
+
+var _ (blockstore.Blockstore) = (*blockStoreWrapper)(nil)
+
+var _ (io.Closer) = (*blockStoreWrapper)(nil)
+
+type blockStoreWrapper struct {
+	inner  blockstore.Blockstore
+	closer io.Closer
+}
+
+// Close implements io.Closer.
+func (b *blockStoreWrapper) Close() error {
+	return b.closer.Close()
+}
+
+// AllKeysChan implements blockstore.Blockstore.
+func (b *blockStoreWrapper) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
+	return b.inner.AllKeysChan(ctx)
+}
+
+// DeleteBlock implements blockstore.Blockstore.
+func (b *blockStoreWrapper) DeleteBlock(ctx context.Context, c cid.Cid) error {
+	return b.inner.DeleteBlock(ctx, c)
+}
+
+// Get implements blockstore.Blockstore.
+func (b *blockStoreWrapper) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
+	return b.inner.Get(ctx, c)
+}
+
+// GetSize implements blockstore.Blockstore.
+func (b *blockStoreWrapper) GetSize(ctx context.Context, c cid.Cid) (int, error) {
+	return b.inner.GetSize(ctx, c)
+}
+
+// Has implements blockstore.Blockstore.
+func (b *blockStoreWrapper) Has(ctx context.Context, c cid.Cid) (bool, error) {
+	return b.inner.Has(ctx, c)
+}
+
+// HashOnRead implements blockstore.Blockstore.
+func (b *blockStoreWrapper) HashOnRead(enabled bool) {
+	b.inner.HashOnRead(enabled)
+}
+
+// Put implements blockstore.Blockstore.
+func (b *blockStoreWrapper) Put(ctx context.Context, blk blocks.Block) error {
+	return b.inner.Put(ctx, blk)
+}
+
+// PutMany implements blockstore.Blockstore.
+func (b *blockStoreWrapper) PutMany(ctx context.Context, blks []blocks.Block) error {
+	return b.inner.PutMany(ctx, blks)
+}
+
+func NewBlockStoreWithCloser(blockstore blockstore.Blockstore, closer io.Closer) BlockStoreWithCloser {
+	return &blockStoreWrapper{
+		inner:  blockstore,
+		closer: closer,
+	}
+}
+
+func FromBlockStore(blockStore BlockStoreWithCloser, rootCid cid.Cid) (*Database, error) {
 	nodeStore, err := tree.NewBlockNodeStore(blockStore, &tree.StoreConfig{CacheSize: 1 << 10})
 	if err != nil {
 		return nil, err
@@ -154,6 +238,7 @@ func FromBlockStore(blockStore blockstore.Blockstore, rootCid cid.Cid) (*Databas
 	}
 
 	db := &Database{
+		closer:      blockStore,
 		blockStore:  blockStore,
 		linkSystem:  nodeStore.LinkSystem(),
 		rootCid:     rootCid,
@@ -164,7 +249,7 @@ func FromBlockStore(blockStore blockstore.Blockstore, rootCid cid.Cid) (*Databas
 	return db, nil
 }
 
-func NewDatabaseFromBlockStore(ctx context.Context, blockStore blockstore.Blockstore) (*Database, error) {
+func NewDatabaseFromBlockStore(ctx context.Context, blockStore BlockStoreWithCloser) (*Database, error) {
 	nodeStore, err := tree.NewBlockNodeStore(blockStore, &tree.StoreConfig{CacheSize: 1 << 10})
 	if err != nil {
 		return nil, err
@@ -196,6 +281,7 @@ func NewDatabaseFromBlockStore(ctx context.Context, blockStore blockstore.Blocks
 
 	db := &Database{
 		blockStore,
+		blockStore,
 		nodeStore.LinkSystem(),
 		rootCid,
 		ptree,
@@ -205,16 +291,13 @@ func NewDatabaseFromBlockStore(ctx context.Context, blockStore blockstore.Blocks
 	return db, nil
 }
 
-func NewMemoryDatabase() (*Database, error) {
-	ctx := context.Background()
+func NewMemoryDatabase(ctx context.Context) (*Database, error) {
 	blockStore := blockstore.NewBlockstore(datastore.NewMapDatastore())
-
-	return NewDatabaseFromBlockStore(ctx, blockStore)
+	return NewDatabaseFromBlockStore(ctx, NewBlockStoreWithCloser(blockStore, io.NopCloser(nil)))
 }
 
 func ImportFromFile(source string) (*Database, error) {
 	blockStore, err := carBlockstore.OpenReadOnly(source, carBlockstore.UseWholeCIDs(true))
-
 	if err != nil {
 		return nil, err
 	}
@@ -224,13 +307,23 @@ func ImportFromFile(source string) (*Database, error) {
 		return nil, err
 	}
 
-	if len(roots) == 0 {
-		return nil, fmt.Errorf("No root CIDs found in CAR file")
+	err = blockStore.Close()
+	if err != nil {
+		return nil, err
 	}
 
-	rootCid := roots[0]
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("no root CIDs found in CAR file")
+	}
 
-	return FromBlockStore(blockStore, rootCid)
+	blockStorerw, err := carBlockstore.OpenReadWrite(source, roots, carBlockstore.UseWholeCIDs(true))
+	if err != nil {
+		return nil, err
+	}
+
+	return FromBlockStore(NewBlockStoreWithCloser(blockStorerw, NewCloserWrapper(func() error {
+		return blockStorerw.Finalize()
+	})), roots[0])
 }
 
 // Merge two db in ProllyTree level, but the collection merging is not handling now.(i.e. maybe here exists the case
@@ -383,6 +476,12 @@ func (db *Database) ExportProof(ctx context.Context, prfCid cid.Cid, destination
 		destination,
 	)
 }
+func (db *Database) Close() error {
+	if db.closer != nil {
+		return db.closer.Close()
+	}
+	return nil
+}
 
 func (db *Database) RootCid() cid.Cid {
 	return db.rootCid
@@ -460,26 +559,21 @@ func (collection *Collection) saveMetaInfo(ctx context.Context) error {
 		PrimaryKey: collection.primaryKey,
 	}
 	node, err := metaInfo.ToNode()
-
 	if err != nil {
 		return err
 	}
 
 	err = collection.db.startMutating(ctx)
-
 	if err != nil {
 		return err
 	}
 
 	err = collection.db.tree.Put(ctx, key, node)
-
 	if err != nil {
 		return err
 	}
 
-	err = collection.db.ApplyChanges(ctx)
-
-	return nil
+	return collection.db.ApplyChanges(ctx)
 }
 
 func (collection *Collection) IndexNDJSON(ctx context.Context, byteStream io.Reader) error {

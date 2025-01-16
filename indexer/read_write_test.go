@@ -68,7 +68,7 @@ func Test5kRandomWriteAndReadWithoutIndex(t *testing.T) {
 	records, recordsBytes := generateRandomRecord(t, 5000)
 
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 
@@ -113,7 +113,7 @@ func Test5kRandomBatchWriteAndReadWithoutIndex(t *testing.T) {
 	records = append(records, records5...)
 
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(context.Background())
 	assert.NoError(t, err)
 
 	collection, err := db.Collection(ctx, "Students", "Name")
@@ -143,7 +143,7 @@ func Test5kRandomWriteAndReadWithOneIndex(t *testing.T) {
 	records, recordsBytes := generateRandomRecord(t, 5000)
 
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 
@@ -175,7 +175,7 @@ func Test5kRandomWriteAndReadWithTwoIndexes(t *testing.T) {
 	records, recordsBytes := generateRandomRecord(t, 5000)
 
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 
@@ -211,7 +211,7 @@ func Test5kRandomWriteAndReadWithOneIndexButTwoFields(t *testing.T) {
 	records, recordsBytes := generateRandomRecord(t, 5000)
 
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 	reader := bytes.NewReader(recordsBytes)
 

@@ -18,7 +18,7 @@ import (
 )
 
 func TestInit(t *testing.T) {
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(context.Background())
 
 	assert.NoError(t, err)
 	if db == nil {
@@ -30,7 +30,7 @@ func TestInit(t *testing.T) {
 
 func TestKitchenSink(t *testing.T) {
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 
 	assert.NoError(t, err)
 	if db == nil {
@@ -101,7 +101,7 @@ func TestKitchenSink(t *testing.T) {
 
 func TestBasicInsert(t *testing.T) {
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 	if db == nil {
 		t.Fail()
@@ -136,7 +136,8 @@ func makeUser(name string) ipld.Node {
 }
 
 func TestSampleData(t *testing.T) {
-	db, err := NewMemoryDatabase()
+	ctx := context.Background()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 	if db == nil {
 		t.Fail()
@@ -146,8 +147,6 @@ func TestSampleData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, dmi.Format, "database")
 	assert.Equal(t, dmi.Version, CURRENT_DB_VERSION)
-
-	ctx := context.Background()
 
 	reader, err := os.Open("../fixtures/sample.ndjson")
 	assert.NoError(t, err)
@@ -244,9 +243,9 @@ func TestSampleData(t *testing.T) {
 }
 
 func TestMergeDB(t *testing.T) {
-	db, err := NewMemoryDatabase()
-	assert.NoError(t, err)
 	ctx := context.Background()
+	db, err := NewMemoryDatabase(ctx)
+	assert.NoError(t, err)
 
 	reader := strings.NewReader(`{"name":"Alice"}
 									{"name":"Bob"}
@@ -269,7 +268,7 @@ func TestMergeDB(t *testing.T) {
 
 	fmt.Println("#####")
 
-	dbTwo, err := NewMemoryDatabase()
+	dbTwo, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 
 	reader = strings.NewReader(`{"name":"William"}
@@ -389,9 +388,9 @@ func TestMergeDB(t *testing.T) {
 }
 
 func TestExportProof(t *testing.T) {
-	db, err := NewMemoryDatabase()
-	assert.NoError(t, err)
 	ctx := context.Background()
+	db, err := NewMemoryDatabase(ctx)
+	assert.NoError(t, err)
 
 	tmpDir := t.TempDir()
 
@@ -427,7 +426,7 @@ func TestExportProof(t *testing.T) {
 
 func TestSortAndCompareCondition(t *testing.T) {
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 
 	reader := strings.NewReader(`{"name":"Alice", "key1":"aaaaa", "key2":"12345", "key3":"index1"}
@@ -482,7 +481,7 @@ func TestSortAndCompareCondition(t *testing.T) {
 
 func TestListingCollections(t *testing.T) {
 	ctx := context.Background()
-	db, err := NewMemoryDatabase()
+	db, err := NewMemoryDatabase(ctx)
 	assert.NoError(t, err)
 
 	// collection of users indexed by name
