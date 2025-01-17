@@ -215,13 +215,13 @@ func NewBlockStoreWithCloser(blockstore blockstore.Blockstore, closer io.Closer)
 	}
 }
 
-func FromBlockStore(blockStore BlockStoreWithCloser, rootCid cid.Cid) (*Database, error) {
+func FromBlockStore(blockStore BlockStoreWithCloser, treeRoot cid.Cid) (*Database, error) {
 	nodeStore, err := tree.NewBlockNodeStore(blockStore, &tree.StoreConfig{CacheSize: 1 << 10})
 	if err != nil {
 		return nil, err
 	}
 
-	ptree, err := tree.LoadProllyTreeFromRootCid(rootCid, nodeStore)
+	ptree, err := tree.LoadProllyTreeFromRootCid(treeRoot, nodeStore)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func FromBlockStore(blockStore BlockStoreWithCloser, rootCid cid.Cid) (*Database
 		return nil, err
 	}
 
-	if !loadedCid.Equals(rootCid) {
+	if !loadedCid.Equals(treeRoot) {
 		return nil, errors.New("Tree CID did not load properly")
 	}
 
@@ -241,7 +241,7 @@ func FromBlockStore(blockStore BlockStoreWithCloser, rootCid cid.Cid) (*Database
 		closer:      blockStore,
 		blockStore:  blockStore,
 		linkSystem:  nodeStore.LinkSystem(),
-		rootCid:     rootCid,
+		rootCid:     treeRoot,
 		tree:        ptree,
 		collections: collections,
 	}
@@ -296,7 +296,7 @@ func NewMemoryDatabase(ctx context.Context) (*Database, error) {
 	return NewDatabaseFromBlockStore(ctx, NewBlockStoreWithCloser(blockStore, io.NopCloser(nil)))
 }
 
-func ImportFromFile(source string) (*Database, error) {
+func ImportFromFile(source string, treeRoot cid.Cid) (*Database, error) {
 	blockStore, err := carBlockstore.OpenReadOnly(source, carBlockstore.UseWholeCIDs(true))
 	if err != nil {
 		return nil, err
@@ -315,6 +315,7 @@ func ImportFromFile(source string) (*Database, error) {
 	if len(roots) == 0 {
 		return nil, fmt.Errorf("no root CIDs found in CAR file")
 	}
+	fmt.Println(roots[0].String())
 
 	blockStorerw, err := carBlockstore.OpenReadWrite(source, roots, carBlockstore.UseWholeCIDs(true))
 	if err != nil {
@@ -323,7 +324,7 @@ func ImportFromFile(source string) (*Database, error) {
 
 	return FromBlockStore(NewBlockStoreWithCloser(blockStorerw, NewCloserWrapper(func() error {
 		return blockStorerw.Finalize()
-	})), roots[0])
+	})), treeRoot)
 }
 
 // Merge two db in ProllyTree level, but the collection merging is not handling now.(i.e. maybe here exists the case
@@ -544,7 +545,6 @@ func (collection *Collection) GetMetaInfo(ctx context.Context) (*schema.Collecti
 	key := collection.getMetaKey()
 
 	node, err := collection.db.tree.Get(key)
-
 	if err != nil {
 		return nil, err
 	}
